@@ -1,6 +1,6 @@
 # Klima-Protocol MCP/x402 Documentation
 
-Retire tokenized carbon credits on **Base** from any AI agent or HTTP client, through the KlimaDAO Retirement Aggregator. This repo holds the agent **plugins** and the **setup + endpoint docs** for the free Klima x402 endpoint (`https://x402.klimalabs.com/api`).
+Retire tokenized carbon credits on **Base** from any AI agent or HTTP client, through the KlimaDAO Retirement Aggregator. This repo holds the agent **plugin** and the **setup guide** for the free Klima x402 endpoint (`https://x402.klimalabs.com/api`). Full API + error reference is published at **[klimalabs.com/x402-endpoint](https://www.klimalabs.com/x402-endpoint)**.
 
 > ⚠️ **Retirement is irreversible** — it permanently burns the carbon credit. No undo, refund, or resale once the transaction confirms. Always review tonnes / price / fee before approving.
 
@@ -10,7 +10,6 @@ Retire tokenized carbon credits on **Base** from any AI agent or HTTP client, th
 |---|---|
 | `plugins/klima-retire.md` | The Base MCP plugin — copy this into your skill. |
 | `base-mcp-setup.md` | Step-by-step: connect Base MCP + load the plugin. |
-| `x402-endpoint.md` | API reference + error catalog (also the direct / non-MCP path). |
 
 ## Install
 
@@ -39,7 +38,7 @@ Then restart your agent.
 ## Docs
 
 - [Base MCP setup](./base-mcp-setup.md) — connect a wallet and load the plugin.
-- [x402 endpoint reference](./x402-endpoint.md) — endpoints, `details` schema, fees, and the full error catalog.
+- [x402 endpoint reference](https://www.klimalabs.com/x402-endpoint) — endpoints, `details` schema, fees, and the full error catalog (published at klimalabs.com).
 
 ## License
 

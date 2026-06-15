@@ -122,4 +122,4 @@ rm -rf .claude/skills/base-mcp        # or ~/.claude/skills/base-mcp
 | Skill installed but plugins not found | `npx skills add` ran in the wrong directory — check `~/.claude/skills` vs `<project>/.claude/skills`.                                                             |
 | Agent doesn't reach for Klima         | Missing routing row in `SKILL.md` Plugins table (step 4.2), or installed plugin copy is stale — re-copy and restart.                                              |
 | "Needs authentication" persists       | Re-run `/mcp` → Authenticate; complete the Base Account OAuth in the browser.                                                                                     |
-| Retirement reverts on-chain           | Insufficient input-token balance on **Base mainnet**, or amount below the class minimum (1 kg) — see the error catalog in [x402-endpoint.md](./x402-endpoint.md). |
+| Retirement reverts on-chain           | Insufficient input-token balance on **Base mainnet**, or amount below the class minimum (1 kg) — see the error catalog at [klimalabs.com/x402-endpoint](https://www.klimalabs.com/x402-endpoint). |
