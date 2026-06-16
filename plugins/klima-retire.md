@@ -2,7 +2,7 @@
 title: "Klima Plugin"
 description: "Retire tokenized carbon credits on Base via the Klima HTTP API → send_calls, with Carbonmark certificate resolution."
 tags: [carbon-credits, carbon-retirement, climate, discovery]
-name: klima
+name: klima-retire
 version: 0.2.0
 integration: http-api
 chains: [base]
