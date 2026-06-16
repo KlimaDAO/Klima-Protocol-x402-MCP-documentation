@@ -18,7 +18,11 @@ Full API + error reference is published at **[klimalabs.com/x402-endpoint](https
 **Prerequisites**
 
 1. Default Base MCP skills installed: `npx skills add base/skills --skill base-mcp`
-2. A **Base Account** funded with USDC or kVCM **on Base mainnet**. This is the smart wallet that executes the retirement, _not_ your Coinbase exchange balance.
+2. A **Base Account** funded **on Base mainnet** with:
+   - **USDC or kVCM**: covers the retirement cost + protocol fee.
+   - **A small amount of ETH**: for gas
+
+   This is the smart wallet that executes the retirement, _not_ your Coinbase exchange balance.
 
 See [`base-mcp-setup.md`](./base-mcp-setup.md) for the full walkthrough (connect server → OAuth → add skill).
 

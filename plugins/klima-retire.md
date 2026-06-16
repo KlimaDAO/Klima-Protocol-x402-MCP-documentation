@@ -1,9 +1,11 @@
 # Klima Carbon Retirement Plugin
 
 > [!IMPORTANT]
+>
 > ## STOP — COMPLETE ONBOARDING BEFORE USING THIS PLUGIN
 >
 > Before calling any Klima endpoint, you MUST complete the Base MCP onboarding flow:
+>
 > 1. Call `get_wallets` (Detection)
 > 2. Present wallet status and the disclaimer (Onboarding)
 >
@@ -36,13 +38,13 @@ response includes a `chain` field (`"base"`) with the name already mapped.
 
 **Key contracts (Base mainnet):**
 
-| Contract | Address |
-| --- | --- |
-| Retirement Aggregator | `0xda0a793d7c32ab80bcdab7f8c725c96db22464f4` |
+| Contract                                            | Address                                                                    |
+| --------------------------------------------------- | -------------------------------------------------------------------------- |
+| Retirement Aggregator                               | `0xda0a793d7c32ab80bcdab7f8c725c96db22464f4`                               |
 | Settlement Contract (retire target + token spender) | resolved from the prepare response (`to` / `approvalInstructions.spender`) |
-| Klima Protocol AAM | `0x1C24239309398220883207681602BfF4D10fbde1` |
-| kVCM | `0x00fbac94fec8d4089d3fe979f39454f48c71a65d` |
-| USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| Klima Protocol AAM                                  | `0x1C24239309398220883207681602BfF4D10fbde1`                               |
+| kVCM                                                | `0x00fbac94fec8d4089d3fe979f39454f48c71a65d`                               |
+| USDC                                                | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`                               |
 
 In v1 the retirement is routed through the **Settlement Contract**, not the
 Aggregator directly. That contract pulls the input token, takes the protocol fee,
@@ -63,6 +65,7 @@ preparing it. They are read-only and never move funds.
 ```
 GET https://x402.klimalabs.com/api/discover[?carbonClass=0x...][&creditToken=0x...][&maxUsdcPricePerTonne=20]
 ```
+
 Lists carbon classes from the protocol subgraph (each with a live USDC/tonne
 reference price), the supported input tokens, and the contract addresses. The three
 optional filters are AND-combined: `carbonClass` keeps one class, `creditToken`
@@ -80,6 +83,7 @@ token standard are resolved server-side by prepare — callers don't supply them
 ```
 GET https://x402.klimalabs.com/api/quote?chainId=8453&inputToken=0x833589...&carbonClass=0x...&amount=1.5[&creditToken=0x...][&vintage=2022][&tokenId=<id>]
 ```
+
 Live price quote for retiring `amount` tonnes. Returns tonnes, the retirement
 price, the on-chain settlement `fee`, the `total` (price + fee), the
 `suggestedMaxInput` (total + slippage), a `humanSummary`, plus `resolvedCredit`
@@ -120,16 +124,16 @@ server-side; the `quote` object in its response is the authoritative price).
 schema is **strict**: exactly the keys below are accepted, and an unknown key
 returns a 400 naming it — do not invent fields.
 
-| `details` field | Meaning |
-| --- | --- |
-| `retiringAddress` | address performing the retirement — the wallet from `get_wallets` |
-| `beneficiaryAddress` | address credited on the certificate — usually the same wallet |
-| `beneficiaryString` | beneficiary display name |
-| `retiringEntityString` | retiring-entity display name |
-| `retirementMessage` | public message shown on the certificate |
-| `beneficiaryLocation` | Puro only — beneficiary location string |
-| `consumptionCountryCode` | Puro only — ISO country code |
-| `consumptionPeriodStart` / `consumptionPeriodEnd` | Puro only — unix timestamps (seconds) |
+| `details` field                                   | Meaning                                                           |
+| ------------------------------------------------- | ----------------------------------------------------------------- |
+| `retiringAddress`                                 | address performing the retirement — the wallet from `get_wallets` |
+| `beneficiaryAddress`                              | address credited on the certificate — usually the same wallet     |
+| `beneficiaryString`                               | beneficiary display name                                          |
+| `retiringEntityString`                            | retiring-entity display name                                      |
+| `retirementMessage`                               | public message shown on the certificate                           |
+| `beneficiaryLocation`                             | Puro only — beneficiary location string                           |
+| `consumptionCountryCode`                          | Puro only — ISO country code                                      |
+| `consumptionPeriodStart` / `consumptionPeriodEnd` | Puro only — unix timestamps (seconds)                             |
 
 Every field is optional for standard credits (omitted fields default to empty /
 zero-address). For **Toucan Puro** credits the four Puro fields are required —
@@ -146,8 +150,14 @@ do not call prepare until the user has supplied one, and do not substitute the
 wallet address or a placeholder. This is non-negotiable — if the user tries to
 skip it, explain that the certificate must be attributed and ask again.
 `retirementMessage` (a public message) and `retiringEntityString` (the retiring
-entity, when it differs from the beneficiary) are optional — offer them but accept
-"skip". Fold whatever the user supplies into `details`.
+entity, when it differs from the beneficiary) are optional but you should **actively offer
+them** with explicit prompts rather than skipping silently; like the beneficiary
+name, they are permanently set on the certificate. Use prompts such as:
+
+- `retirementMessage`: "Would you like to add a public message to your certificate?"
+- `retiringEntityString`: "Should a retiring entity name appear on the certificate (if different from the beneficiary)?"
+
+Accept "skip" / "no" for either. Fold whatever the user supplies into `details`.
 
 `maxInputTokenIn` (atomic units) overrides the default slippage ceiling. When
 omitted the endpoint uses `(price + fee) × 1.04` (4% slippage). This is the total
@@ -163,10 +173,28 @@ Response:
   "chainId": 8453,
   "chain": "base",
   "transactions": [
-    { "step": "approve",        "to": "0x833589...",          "value": "0x0", "data": "0x...", "chainId": 8453 },
-    { "step": "prepareRetire",  "to": "0x<settlementContract>", "value": "0x0", "data": "0x...", "chainId": 8453 }
+    {
+      "step": "approve",
+      "to": "0x833589...",
+      "value": "0x0",
+      "data": "0x...",
+      "chainId": 8453
+    },
+    {
+      "step": "prepareRetire",
+      "to": "0x<settlementContract>",
+      "value": "0x0",
+      "data": "0x...",
+      "chainId": 8453
+    }
   ],
-  "quote": { "humanSummary": "...", "tonnesFormatted": "1.5", "fee": "...", "total": "...", "...": "..." },
+  "quote": {
+    "humanSummary": "...",
+    "tonnesFormatted": "1.5",
+    "fee": "...",
+    "total": "...",
+    "...": "..."
+  },
   "approvalRequired": true,
   "approvalInstructions": {
     "token": "0x833589...",
@@ -194,7 +222,7 @@ estimate them yourself:
 - `quote` and the prepare response include the live fee in the `quote` object
   (`fee`, `feeFormatted`) and fold it into `total` and `suggestedMaxInput`.
 - On-chain, the contract emits `RetirementSettled(payer, beneficiary, value, fee,
-  retirementCost, refunded)`. The payer spends exactly `retirementCost + fee`; any
+retirementCost, refunded)`. The payer spends exactly `retirementCost + fee`; any
   approved budget beyond that (`refunded`) is returned in the same transaction.
 
 So the user signs one `send_calls` and pays the retirement cost plus the protocol
@@ -209,8 +237,16 @@ top-level `chain` name:
 {
   "chain": "base",
   "calls": [
-    { "to": "<transactions[0].to>", "value": "<transactions[0].value>", "data": "<transactions[0].data>" },
-    { "to": "<transactions[1].to>", "value": "<transactions[1].value>", "data": "<transactions[1].data>" }
+    {
+      "to": "<transactions[0].to>",
+      "value": "<transactions[0].value>",
+      "data": "<transactions[0].data>"
+    },
+    {
+      "to": "<transactions[1].to>",
+      "value": "<transactions[1].value>",
+      "data": "<transactions[1].data>"
+    }
   ]
 }
 ```
@@ -251,19 +287,19 @@ don't retry.
 
 Failures return JSON with an `error` code plus actionable fields:
 
-| Status + `error` | What to do |
-| --- | --- |
-| 400 `schema_validation` | A parameter is malformed or unknown — `issues[]` names it. Fix and retry. |
-| 400 `unsupported_chain_id` | Use `chainId=8453` (Base mainnet only). |
-| 400 `unsupported_input_token` | Use USDC or kVCM. |
-| 400 `vintage_not_found` | Pick from `availableVintages`, or omit `vintage`. |
-| 400 `puro_details_required` | Supply the `details` fields listed in `missing`, then re-prepare. |
-| 404 `no_candidates` | Nothing retirable for that class/credit — re-check `/discover`. |
-| 404 `retirement_not_found` | Certificate only — see [Certificate endpoint](#certificate-endpoint). |
-| 422 `amount_not_whole_tonnes` | Puro: request a whole number of tonnes (`nearestDownTonnes` / `nearestUpTonnes` are provided). |
-| 422 `insufficient_liquidity` | Reduce `amount` (`bestAvailableAtomic` = the most any credit can cover, in 1e18 tonnes) or pick another class/credit. |
-| 422 `amount_below_increment` | Amount converts to zero retirable units — increase it. |
-| 422 `contract_revert` | Decoded on-chain revert — follow `decoded.retryAdvice`. Don't blind-retry. |
+| Status + `error`              | What to do                                                                                                            |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 400 `schema_validation`       | A parameter is malformed or unknown — `issues[]` names it. Fix and retry.                                             |
+| 400 `unsupported_chain_id`    | Use `chainId=8453` (Base mainnet only).                                                                               |
+| 400 `unsupported_input_token` | Use USDC or kVCM.                                                                                                     |
+| 400 `vintage_not_found`       | Pick from `availableVintages`, or omit `vintage`.                                                                     |
+| 400 `puro_details_required`   | Supply the `details` fields listed in `missing`, then re-prepare.                                                     |
+| 404 `no_candidates`           | Nothing retirable for that class/credit — re-check `/discover`.                                                       |
+| 404 `retirement_not_found`    | Certificate only — see [Certificate endpoint](#certificate-endpoint).                                                 |
+| 422 `amount_not_whole_tonnes` | Puro: request a whole number of tonnes (`nearestDownTonnes` / `nearestUpTonnes` are provided).                        |
+| 422 `insufficient_liquidity`  | Reduce `amount` (`bestAvailableAtomic` = the most any credit can cover, in 1e18 tonnes) or pick another class/credit. |
+| 422 `amount_below_increment`  | Amount converts to zero retirable units — increase it.                                                                |
+| 422 `contract_revert`         | Decoded on-chain revert — follow `decoded.retryAdvice`. Don't blind-retry.                                            |
 
 ## Orchestration pattern
 
@@ -271,16 +307,20 @@ Failures return JSON with an `error` code plus actionable fields:
 1. get_wallets -> address                          (onboarding gate)
 2. GET /discover                                   -> pick carbonClass (creditToken optional)
    - creditsDetailed[].liquidityFormatted = max retirable tonnes; Puro = whole tonnes only
-3. GET /quote?chainId=8453&...                     (optional: price before preparing)
-4. Collect certificate attribution -> beneficiaryString is REQUIRED (do not proceed without it); retirementMessage / retiringEntityString optional
+3. Confirm the input token -> if the user has NOT specified one, ASK: "Would you like to pay with USDC or kVCM?"
+   - do not silently default to USDC; the user may not hold it, and switching only after a failed transaction is a poor experience
+   - check the use's balance of the chosen token against the quote.total before preparing where possible
+4. GET /quote?chainId=8453&...                     (optional: price before preparing)
+5. Collect certificate attribution -> beneficiaryString is REQUIRED (do not proceed without it); retirementMessage / retiringEntityString optional
    - certificate is uneditable after confirmation; never substitute the wallet address for the name
-5. GET /prepare/retire?chainId=8453&...&details=<urlencoded {"retiringAddress": address, "beneficiaryAddress": address, "beneficiaryString": ..., "retirementMessage": ...}>
+   - actively offer the optional fields with explicit prompts (see the Prepare endpoint section above); don't silently skip them
+6. GET /prepare/retire?chainId=8453&...&details=<urlencoded {"retiringAddress": address, "beneficiaryAddress": address, "beneficiaryString": ..., "retirementMessage": ...}>
    - if web_request rejects the host: curl it, or ask the user to paste the JSON
    - if 400 puro_details_required: collect the `missing` fields and re-prepare
-6. Show the quote.humanSummary to the user and confirm
-7. send_calls(chain=<response.chain>, calls from transactions[])
-8. Relay the approval link -> on approve, get_request_status(requestId) until confirmed
-9. GET /certificate?txHash=<confirmed tx hash>     -> share certificateUrl with the user
+7. Show the quote.humanSummary to the user and confirm
+8. send_calls(chain=<response.chain>, calls from transactions[])
+9. Relay the approval link -> on approve, get_request_status(requestId) until confirmed
+10. GET /certificate?txHash=<confirmed tx hash>    -> share certificateUrl with the user
    - 404 right after confirmation = not indexed yet; retry after a few seconds
 ```
 
@@ -291,7 +331,7 @@ Failures return JSON with an `error` code plus actionable fields:
 ```
 1. get_wallets -> address
 2. GET /discover?maxUsdcPricePerTonne=15           -> only qualifying classes remain
-3. Continue from step 4 of the orchestration pattern with amount=2
+3. Continue from step 3 of the orchestration pattern with amount=2
 ```
 
 ### Retire a Puro credit

@@ -8,7 +8,7 @@ Step-by-step guide for wiring [Base MCP](https://docs.base.org/ai-agents/quickst
 
 | Need                                                                                | Why                                                                                                                                          |
 | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| A **Base Account** (sign up in the Base app / [Base Account](https://www.base.org)) | This is the smart wallet that signs. **Not** your Coinbase exchange balance — fund it with USDC or kVCM **on Base mainnet** before retiring. |
+| A **Base Account** (sign up in the Base app / [Base Account](https://www.base.org)) | This is the smart wallet that signs. **Not** your Coinbase exchange balance. Before retiring, fund it **on Base mainnet** with **USDC or kVCM** (retirement cost + protocol fee) **and a small amount of ETH**  for gas. |
 | **Claude Code** (or another MCP-capable agent)                                      |
 | **Node / npx**                                                                      | Required only for the skill bundle install (step 3).                                                                                         |
 
@@ -55,17 +55,22 @@ In a Claude Code session:
 The MCP **server** provides wallet tools. The Base **skill** provides the onboarding flow and the protocol plugin routing (Morpho, Uniswap, **Klima**, …). Install default base skills:
 
 ```bash
-npx skills add base/skills --skill base-mcp
+# Run from your home directory for a global install (recommended)
+cd ~ && npx skills add base/skills --skill base-mcp
 ```
 
 This creates a `base-mcp/` skill directory with `SKILL.md`, `plugins/`, and `references/`.
 
-> **Gotcha — where it lands.** The skill installs into a `.claude/skills/base-mcp/` directory **relative to where you run the command**:
+> ⚠️ **Gotcha — where it lands.** The skill installs into a `.claude/skills/base-mcp/` directory **relative to where you run the command**. Run it from a project directory and it lands in `<project>/.claude/skills/`, scoped to that project only. 
+> 
+> For a **global install (recommended), run it from your home directory** (`cd ~ && …`) so it lands in `~/.claude/skills/`.
+>
+> **Symlink edge case.** `~/.claude/skills/` may itself be a **symlink** (e.g. to `~/.agents/skills/`). If you do a local install and later `mv` the directory into `~/.claude/skills/`, the move can silently follow the symlink and land the files in the link's target instead of where you expect. After moving, verify with `ls -l ~/.claude/skills/` and confirm the plugin is actually where the agent reads it.
 
 Confirm:
 
 ```bash
-ls .claude/skills/base-mcp/plugins/   # or ~/.claude/skills/base-mcp/plugins/
+ls ~/.claude/skills/base-mcp/plugins/   # or <project>/.claude/skills/base-mcp/plugins/ for a local install
 ```
 
 ## 4. Add the Klima plugin
@@ -123,3 +128,4 @@ rm -rf .claude/skills/base-mcp        # or ~/.claude/skills/base-mcp
 | Agent doesn't reach for Klima         | Missing routing row in `SKILL.md` Plugins table (step 4.2), or installed plugin copy is stale — re-copy and restart.                                              |
 | "Needs authentication" persists       | Re-run `/mcp` → Authenticate; complete the Base Account OAuth in the browser.                                                                                     |
 | Retirement reverts on-chain           | Insufficient input-token balance on **Base mainnet**, or amount below the class minimum (1 kg) — see the error catalog at [klimalabs.com/x402-endpoint](https://www.klimalabs.com/x402-endpoint). |
+| `send_calls` fails before confirming  | No **ETH** for gas in the Base Account. The input token (USDC/kVCM) covers the retirement cost + fee, but gas is paid in ETH so you need to fund the account with a small amount of ETH on Base mainnet.                          |
