@@ -7,6 +7,9 @@ EIP-712 authorization off-chain; the Klima x402 endpoint performs the retirement
 
 ## Endpoints
 
+Base URL: `https://x402.klimalabs.com/api`. All paths below are relative to it
+(e.g. `GET https://x402.klimalabs.com/api/discover`, `POST https://x402.klimalabs.com/api/actions/retire`).
+
 ### `GET /discover`
 
 ```
