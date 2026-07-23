@@ -1,0 +1,25 @@
+{
+  "name": "klima-x402-examples",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runnable examples for paid carbon retirement via the Klima x402 endpoint.",
+  "engines": {
+    "node": ">=20",
+    "npm": ">=11.10.0"
+  },
+  "scripts": {
+    "discover": "tsx discover-quote/discover-quote.ts",
+    "retire:sdk": "tsx retire/retire-sdk.ts",
+    "retire:raw": "tsx retire/retire-raw.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "viem": "^2.49.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "tsx": "^4.22.0",
+    "typescript": "^7.0.2"
+  }
+}
