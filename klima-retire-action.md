@@ -1,3 +1,9 @@
+<!--
+  DO NOT EDIT. Published automatically from Carbonmark/x402-klima-RA-new/skills/klima-retire-action.md.
+  Changes made here will be overwritten by the next docs sync.
+  Edit the source file and open a PR there instead.
+-->
+
 # Klima Carbon Retirement — Relay Action Skill
 
 Retire tokenized carbon credits on Base via the Klima x402 endpoint. The user signs an

@@ -143,8 +143,9 @@ console.log(
 
 // ─── STEP 2/4 · sign ─────────────────────────────────────────────────────────
 // The ONLY signature: a standard token authorization (EIP-3009 for USDC, EIP-2612
-// for kVCM). The credit/amount/beneficiary are NOT signed. See README "What you
-// sign — and what you don't".
+// for kVCM). On USDC the authorization's `nonce` is keccak256(retirement, salt),
+// so this one signature also covers the credit, amount, and attribution. See
+// README "What you sign".
 
 const signature = await account.signTypedData({
   domain: typedData.domain,
@@ -156,6 +157,8 @@ console.log(`2/4 sign          → ${signature.slice(0, 20)}…`);
 
 // ─── STEP 3/4 · submit ───────────────────────────────────────────────────────
 // actionsRetireRequest + signature → executor relays on-chain and pays the gas.
+// Spread the template whole — it carries `salt`, without which actions/retire
+// cannot recheck the authorization nonce and returns 400.
 // Response is `settled` (done) or `pending_index` (mined, poll in step 4).
 
 const submit = await post({
