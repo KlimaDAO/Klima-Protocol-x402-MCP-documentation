@@ -90,7 +90,8 @@ try {
     carbonClass: cfg.carbonClass,
     ...(cfg.creditToken ? { creditToken: cfg.creditToken } : {}),
     inputToken: cfg.inputToken,
-    details: { beneficiaryString: cfg.beneficiary, retirementMessage: cfg.message },
+    details: { beneficiaryAddress: account.address, beneficiaryString: cfg.beneficiary, retirementMessage: cfg.message },
+    beneficiaryIsPayer: true,
     onStep: (step, info) => console.log(`  · ${step}`, info),
   });
 

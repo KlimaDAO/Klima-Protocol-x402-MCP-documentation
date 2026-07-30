@@ -1,3 +1,9 @@
+<!--
+  DO NOT EDIT. Published automatically from Carbonmark/x402-klima-RA-new/examples/README.md.
+  Changes made here will be overwritten by the next docs sync.
+  Edit the source file and open a PR there instead.
+-->
+
 # Carbon Retirement Examples
 
 Runnable examples of the **paid relay** path: you sign one standard token
@@ -119,11 +125,35 @@ Note: if testing locally this will always return pending_index.
 `404 retirement_not_found`. That's expected; keep polling. `certificate` takes
 **only** `txHash`, no `chainId`.
 
-## What you sign and what you don't
+## What you sign
 
-You only ever sign the **token authorization**. The credit, amount, and
-beneficiary are **not** in the signed message. They ride unsigned in the request
-body and are bound to your signature only by the authorized spend `value`.
+You only ever sign the **token authorization** — one message, no approvals.
+
+On the USDC path that signature still covers the whole retirement. The
+authorization's `nonce` field is not random: it is
+`keccak256(retirement, salt)`, where the retirement is the exact credit, amount,
+and attribution struct `prepare-auth` returned, and `salt` is fresh 32 bytes
+minted per authorization. Because `nonce` is one of the six signed EIP-3009
+fields, signing the authorization signs **what gets retired and who is
+credited**, not just the dollar value.
+
+Two consequences for you:
+
+- Post `actionsRetireRequest` back **verbatim, including `salt`**. Changing
+  `creditToken`, `tokenId`, `amount`, or anything in `details` after signing
+  gets a `400 params_mismatch`. Dropping `salt` gets a `400
+  invalid_auth_payload`.
+- Check `onChainDetails` in the `prepare-auth` response before signing. It is
+  exactly the attribution the hash commits to.
+
+The salt exists so the nonce is *verifiable* without being *deterministic*: USDC
+burns each `(from, nonce)` pair permanently, so an unsalted hash would make two
+identical retirements by the same payer collide. It is not a secret — the nonce
+is pinned by your signature, so nobody can find a different retirement that
+hashes to it.
+
+The kVCM (EIP-2612) path has no commitment and no salt. Permit's `nonce` is the
+token's own sequential counter, so it can't carry one.
 
 The SDK is **signer-agnostic**. The examples sign with viem; swap for ethers, a
 browser wallet, or an agent's signer:

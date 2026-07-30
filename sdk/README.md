@@ -1,3 +1,9 @@
+<!--
+  DO NOT EDIT. Published automatically from Carbonmark/x402-klima-RA-new/sdk/README.md.
+  Changes made here will be overwritten by the next docs sync.
+  Edit the source file and open a PR there instead.
+-->
+
 # @klimadao/x402-retire
 
 Zero-dependency TypeScript client for retiring tokenized carbon on **Base**
@@ -36,14 +42,23 @@ const { status, transactionHash, retirements } = await klima.retire({
   inputToken: "usdc", // or "kvcm" / an address
   details: {
     beneficiaryString: "Acme Corp",
+    beneficiaryAddress: "0x1234567890123456789012345678901234567890",
     retirementMessage: "Net-zero 2026",
   },
+  beneficiaryIsPayer: true, // credit the payer; or set details.beneficiaryAddress
   signTypedData: (td) => account.signTypedData(td as any), // cast: viem's strict generics vs. the loose wire type
 });
 
 for (const r of retirements)
   console.log(r.amountInTonnes, "t →", r.certificateUrl);
 ```
+
+> **Attribution is required.** `retire()` will not guess who a retirement belongs
+> to. Pass `details.beneficiaryAddress` (the party it's for), or
+> `beneficiaryIsPayer: true` to credit the paying wallet deliberately — omitting
+> both throws `attribution_required`. The beneficiary is indexed on-chain as a
+> permanent grouping key and can't be changed once the retirement confirms.
+> `beneficiaryString` is what shows on the certificate, and is equally permanent.
 
 ### Other wallets
 
@@ -72,6 +87,14 @@ signTypedData: (td) =>
 | `certificate({ txHash })` | Resolve the public Carbonmark certificate(s) for a tx.      |
 
 Non-2xx responses throw `KlimaRetireError` with `.status`, `.code`, `.details`.
+
+If you call `prepareAuth` directly instead of `retire()`, post the returned
+`actionsRetireRequest` back **whole**. On the USDC path it carries a top-level
+`salt`, which together with the retirement itself forms the EIP-3009
+authorization `nonce` you signed; `actions/retire` re-hashes both to verify that
+the retirement being submitted is the one authorized. Dropping `salt` returns
+`400 invalid_auth_payload`; changing the credit, amount, or `details` after
+signing returns `400 params_mismatch`. `retire()` handles this for you.
 
 See the [endpoint reference](https://www.klimalabs.com/x402-endpoint) for the
 full request/response shapes.
