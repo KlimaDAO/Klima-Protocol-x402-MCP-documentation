@@ -126,7 +126,7 @@ Machine-readable registry of every `error` value the API returns (GET alias: `/a
 
 ## Versioning — pinning a major
 
-The API is versioned by host. Every release answers at two addresses:
+The API carries a semantic version, published as `apiVersion`. The **major** is the compatibility contract; the **host** is how you pin it. Every release answers at two addresses:
 
 | Host | Serves |
 | --- | --- |
@@ -136,7 +136,21 @@ The API is versioned by host. Every release answers at two addresses:
 
 Everything on this page describes **v1**. If your integration predates it and you are not ready for the [v1 breaking changes](#error-reference), point at `v0.x402.klimalabs.com` and migrate when you can — v0 is not being extended, only kept reachable.
 
-Both `/.well-known/x402.json` and `/.well-known/x402-changelog.json` (GET alias `/api/changelog`) carry `apiVersion` and a `versionedHosts` object, so an agent can resolve the right host without reading this table. The changelog also carries a `migration` string on every breaking release.
+Pinning the `v<major>` host is the entire mechanism. There is no version header, query parameter, or `Accept` negotiation, and no way to pin a minor or patch: within a major you always get the newest build.
+
+Both `/.well-known/x402.json` and `/.well-known/x402-changelog.json` (GET alias `/api/changelog`) carry `apiVersion` and a `versionedHosts` object, so an agent can resolve the right host without reading this table.
+
+### How changes are bundled
+
+| Bump | Contains | Reaches a pinned caller? |
+| --- | --- | --- |
+| **Patch** (1.0.0 → 1.0.1) | Fixes that leave the request and response contract intact. | Yes — rolls into `v1`. |
+| **Minor** (1.0 → 1.1) | Additive only: new actions, new optional request fields, new response fields. | Yes — rolls into `v1`. |
+| **Major** (1.x → 2.0) | Anything a working caller could notice as a break. | **No** — `v1` stays put. |
+
+Breaking means a request that succeeded before now fails. Breaking changes accumulate and ship together in one deliberate major bump, so callers migrate once per major instead of continuously. Additive work does not wait for that bump: it ships in a minor and reaches every 1.x caller, so pinning `v1` does not freeze you out of new features.
+
+Every release is an entry in the changelog with a `breaking` boolean, per-change `kind` (`breaking` / `added` / `changed` / `fixed` / `removed`), and the `action` each change applies to. Breaking releases additionally carry a `migration` string stating concretely what a caller must change. Poll that document rather than diffing live responses.
 
 ## Paid retire (relay) — sign once, no gas
 
