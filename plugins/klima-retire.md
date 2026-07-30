@@ -1,19 +1,8 @@
----
-title: "Klima Plugin"
-description: "Retire tokenized carbon credits on Base via the Klima HTTP API → send_calls, with Carbonmark certificate resolution."
-tags: [carbon-credits, carbon-retirement, climate, discovery]
-name: klima-retire
-version: 0.2.0
-integration: http-api
-chains: [base]
-requires:
-  shell: none
-  allowlist: [x402.klimalabs.com]
-  externalMcp: null
-  cliPackage: null
-auth: none
-risk: [irreversible]
----
+<!--
+  DO NOT EDIT. Published automatically from Carbonmark/x402-klima-RA-new/skills/plugins/klima-retire.md.
+  Changes made here will be overwritten by the next docs sync.
+  Edit the source file and open a PR there instead.
+-->
 
 # Klima Plugin
 

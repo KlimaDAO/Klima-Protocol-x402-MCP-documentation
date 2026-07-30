@@ -59,6 +59,10 @@ export interface RetireParams extends QuoteParams {
   /** Your wallet's `eth_signTypedData_v4` callback. */
   signTypedData: SignTypedData;
   details?: RetirementDetails;
+  /**
+   * Who the retirement is credited to. Required on the relay path
+   */
+  beneficiaryIsPayer?: boolean;
   /** Authorization lifetime in seconds (max 86400 = 24 hours). */
   timeToLiveSeconds?: number;
   /** Poll /certificate when the tx is mined but not yet indexed. Default: true. */
@@ -300,6 +304,9 @@ export function createClient(options: KlimaClientOptions = {}): KlimaClient {
         ...(params.vintage != null ? { vintage: params.vintage } : {}),
         ...(params.tokenId != null ? { tokenId: String(params.tokenId) } : {}),
         ...(params.details ? { details: params.details } : {}),
+        ...(params.beneficiaryIsPayer
+          ? { beneficiaryIsPayer: params.beneficiaryIsPayer }
+          : {}),
         ...(params.timeToLiveSeconds != null
           ? { timeToLiveSeconds: params.timeToLiveSeconds }
           : {}),
@@ -332,6 +339,8 @@ export function createClient(options: KlimaClientOptions = {}): KlimaClient {
       const signature = await signTypedData(prep.typedData as Eip712TypedData);
 
       onStep?.("submit", {});
+      // Spread the whole template: besides details/creditToken/tokenId it carries
+      // `salt`, which actions/retire needs to recheck the authorization nonce.
       const result = await post<RetireResult>({
         ...prep.actionsRetireRequest,
         authPayload: { ...prep.actionsRetireRequest.authPayload, signature },
