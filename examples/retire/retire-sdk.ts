@@ -15,6 +15,7 @@ const CONFIG = {
   amount: "1", // tonnes (min 0.001)
   carbonClass: "0x0008f35758a4318942EcB5d5414116ce7B1Ede2d", // from klima.discover()
   creditToken: undefined as string | undefined, // pin a credit, or let the server pick
+  listingId: undefined as string | undefined,
   inputToken: "usdc", // "usdc" | "kvcm" | a token address
   beneficiary: "x402 SDK example", // certificate attribution (immutable once confirmed)
   message: "Retired via the Klima x402 relay",
@@ -28,6 +29,7 @@ const { values } = parseArgs({
     amount: { type: "string" },
     "carbon-class": { type: "string" },
     "credit-token": { type: "string" },
+    "listing-id": { type: "string" },
     "input-token": { type: "string" },
     beneficiary: { type: "string" },
     message: { type: "string" },
@@ -45,6 +47,8 @@ Options:
   --amount <t>          tonnes to retire (min 0.001)         [${CONFIG.amount}]
   --carbon-class <0x>   class id (from \`npm run discover\`)    [${CONFIG.carbonClass}]
   --credit-token <0x>   pin a specific credit (else server picks)
+  --listing-id <0x>     fill a marketplace listing instead (USDC only;
+                        replaces --carbon-class / --credit-token)
   --input-token <tok>   usdc | kvcm | token address          [${CONFIG.inputToken}]
   --beneficiary <str>   certificate attribution (immutable once confirmed)
   --message <str>       certificate message
@@ -62,6 +66,7 @@ const cfg = {
     values["carbon-class"] ?? process.env.CARBON_CLASS ?? CONFIG.carbonClass,
   creditToken:
     values["credit-token"] ?? process.env.CREDIT_TOKEN ?? CONFIG.creditToken,
+  listingId: values["listing-id"] ?? process.env.LISTING_ID ?? CONFIG.listingId,
   inputToken:
     values["input-token"] ?? process.env.INPUT_TOKEN ?? CONFIG.inputToken,
   beneficiary:
@@ -71,10 +76,16 @@ const cfg = {
 };
 
 // Secret stays out of source: load examples/.env, read the key from the env.
-try { process.loadEnvFile(); } catch { /* no .env — rely on ambient env */ }
+try {
+  process.loadEnvFile();
+} catch {
+  /* no .env — rely on ambient env */
+}
 const PRIVATE_KEY = process.env.PRIVATE_KEY as `0x${string}` | undefined;
 if (!PRIVATE_KEY) {
-  console.error("Set PRIVATE_KEY in examples/.env (a wallet holding USDC on Base).");
+  console.error(
+    "Set PRIVATE_KEY in examples/.env (a wallet holding USDC on Base).",
+  );
   process.exit(1);
 }
 
@@ -87,10 +98,20 @@ try {
     signTypedData: (td) => account.signTypedData(td as any), // signer-agnostic; see README
 
     amount: cfg.amount,
-    carbonClass: cfg.carbonClass,
-    ...(cfg.creditToken ? { creditToken: cfg.creditToken } : {}),
+    // Exactly one supply source. A listing carries its own credit and firm
+    // price, so sending carbonClass alongside it is rejected, not ignored.
+    ...(cfg.listingId
+      ? { listingId: cfg.listingId }
+      : {
+          carbonClass: cfg.carbonClass,
+          ...(cfg.creditToken ? { creditToken: cfg.creditToken } : {}),
+        }),
     inputToken: cfg.inputToken,
-    details: { beneficiaryAddress: account.address, beneficiaryString: cfg.beneficiary, retirementMessage: cfg.message },
+    details: {
+      beneficiaryAddress: account.address,
+      beneficiaryString: cfg.beneficiary,
+      retirementMessage: cfg.message,
+    },
     beneficiaryIsPayer: true,
     onStep: (step, info) => console.log(`  · ${step}`, info),
   });

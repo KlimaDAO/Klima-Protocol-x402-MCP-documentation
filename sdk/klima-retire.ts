@@ -37,15 +37,37 @@ export interface RetirementDetails {
   consumptionPeriodEnd?: number;
 }
 
+/** Which supply surface an item came from, and which one to search. */
+export type SupplySource = "protocol" | "marketplace";
+
+/** All optional, AND-combined. With none, /discover returns the whole catalog. */
 export interface DiscoverFilters {
+  /** Restrict to one surface. Omit to search both. */
+  source?: SupplySource;
   carbonClass?: string;
   creditToken?: string;
+  project?: string;
+  vintage?: number;
+  country?: string;
+  category?: string;
+  methodology?: string;
   maxUsdcPricePerTonne?: string | number;
 }
 
 export interface QuoteParams {
   amount: string | number;
-  carbonClass: string;
+  /**
+   * Protocol supply: the carbon class to retire through. Mutually exclusive
+   * with `listingId` — supply exactly one.
+   */
+  carbonClass?: string;
+  /**
+   * Marketplace supply: the listing to fill, from `/discover`'s
+   * `marketplaceListings`. A listing already names its credit and its price, so
+   * `carbonClass`, `creditToken`, `vintage` and `tokenId` are all ignored
+   * alongside it. Marketplace fills settle in USDC only.
+   */
+  listingId?: string;
   /** "usdc" | "kvcm" | a token address. Default: "usdc". */
   inputToken?: string;
   creditToken?: string;
@@ -173,6 +195,19 @@ function normalizeAmount(amount: string | number): string {
   return s;
 }
 
+// The endpoint requires exactly one of carbonClass / listingId and rejects both
+// an empty object and one carrying an explicit `undefined`, so emit only the key
+// that was actually supplied and let the server return the 400 if neither was.
+function supplySource(params: {
+  carbonClass?: string;
+  listingId?: string;
+}): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (params.carbonClass) out.carbonClass = params.carbonClass;
+  if (params.listingId) out.listingId = params.listingId;
+  return out;
+}
+
 // ─── client ────────────────────────────────────────────────────────────────
 
 export interface KlimaClient {
@@ -285,7 +320,7 @@ export function createClient(options: KlimaClientOptions = {}): KlimaClient {
         chainId,
         inputToken: resolveInputToken(chainId, params.inputToken),
         amount: normalizeAmount(params.amount),
-        carbonClass: params.carbonClass,
+        ...supplySource(params),
         ...(params.creditToken ? { creditToken: params.creditToken } : {}),
         ...(params.vintage != null ? { vintage: params.vintage } : {}),
         ...(params.tokenId != null ? { tokenId: String(params.tokenId) } : {}),
@@ -299,7 +334,7 @@ export function createClient(options: KlimaClientOptions = {}): KlimaClient {
         from: params.from,
         inputToken: resolveInputToken(chainId, params.inputToken),
         amount: normalizeAmount(params.amount),
-        carbonClass: params.carbonClass,
+        ...supplySource(params),
         ...(params.creditToken ? { creditToken: params.creditToken } : {}),
         ...(params.vintage != null ? { vintage: params.vintage } : {}),
         ...(params.tokenId != null ? { tokenId: String(params.tokenId) } : {}),

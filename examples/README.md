@@ -16,7 +16,7 @@ funds); **`retire/`** spends funds.
 
 | File                                                                     | What it's for                                                                                                                                                                                                                                                    |
 | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`discover-quote/discover-quote.ts`](./discover-quote/discover-quote.ts) | **Read-only, safe to run as-is.** Browses the catalog, picks the cheapest liquid credit, and prices it. No wallet needed. Prints the `carbonClass` to paste into the retire examples.                                                                            |
+| [`discover-quote/discover-quote.ts`](./discover-quote/discover-quote.ts) | **Read-only, safe to run as-is.** Browses both supply sources, picks the cheapest fill that can cover the amount, and prices it. No wallet needed. Prints the `carbonClass` or `listingId` to paste into the retire examples.                                                                            |
 | [`retire/retire-sdk.ts`](./retire/retire-sdk.ts)                         | **The retirement path.** The minimal happy path via the zero-dependency client in [`../sdk/klima-retire.ts`](../sdk/klima-retire.ts) — one `retire()` call does prepare-auth → sign → submit → poll certificate.                                                 |
 | [`retire/retire-raw.ts`](./retire/retire-raw.ts)                         | **Protocol walkthrough.** The same flow over plain HTTP + EIP-712 with no Klima dependencies. Read it to understand the wire protocol, or port it to another language. The four steps are the same everywhere. viem is declared in this folder's `package.json`. |
 
@@ -50,6 +50,12 @@ published less than 7 days ago, which is a supply-chain cooldown. Upgrade with
   credits that share one price; a credit is a specific token within it. Get both
   from `discover` (see below). Pin a `creditToken` to force a specific credit, or
   omit it and the server picks the class's first liquid credit.
+- **`listingId`** — the alternative to `carbonClass`: one seller's fixed-price
+  offer of one credit, from `discover`'s `marketplaceListings[]`. It replaces the
+  class rather than narrowing it (a listing already names its credit), so pass
+  exactly one of the two — both, or neither, is a 400. A listing settles in USDC
+  only, has no slippage buffer, and is bounded by its own `minFill` and
+  `leftToSell`. Both retire examples take `--listing-id`.
 - **`inputToken`** — `"usdc"`, `"kvcm"`, or a token address. On Base mainnet:
   USDC = `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`,
   kVCM = `0x00fbac94fec8d4089d3fe979f39454f48c71a65d`.
@@ -75,17 +81,20 @@ npm run retire:raw
 pick your own, run `npm run discover` — it uses the SDK's two **read-only**
 calls (no funds, no signature) and prints a ready-to-paste pick:
 
-- **`discover({ maxUsdcPricePerTonne })`** browses the catalog. Each class
+- **`discover({ maxUsdcPricePerTonne })`** browses both surfaces. Each class
   carries a reference USDC/tonne price (spot, accurate near 1 tonne) and its
   credits with available liquidity. Any liquid credit in a class yields the same
-  class price, so liquidity is the only thing to choose on within a class.
-- **`quote({ amount, carbonClass, creditToken, inputToken })`** prices the exact
+  class price, so liquidity is the only thing to choose on within a class. Each
+  marketplace listing carries a firm price instead, along with how much of it is
+  left and the smallest fill the seller accepts. `npm run discover` ranks both
+  together and quotes whichever is cheapest for your amount.
+- **`quote({ amount, carbonClass | listingId, creditToken, inputToken })`** prices the exact
   retirement (retirement cost + on-chain protocol fee). This is the number to
   show a user before they commit. The relay's signed budget (step 1 below) is
   slightly higher because it also covers the executor's gas.
 
 To preview the authorization itself, call
-**`prepareAuth({ from, amount, carbonClass, inputToken, details })`** — it
+**`prepareAuth({ from, amount, carbonClass | listingId, inputToken, details })`** — it
 returns the full signed budget (incl. executor gas) and the exact EIP-712
 payload your wallet would sign, ideal for a confirm screen. Still no funds, no
 signature.

@@ -19,25 +19,46 @@ Base URL: `https://x402.klimalabs.com/api`. All paths below are relative to it
 ### `GET /discover`
 
 ```
-GET /discover[?carbonClass=0x...][&creditToken=0x...][&maxUsdcPricePerTonne=20]
+GET /discover[?source=protocol|marketplace][&carbonClass=0x...][&creditToken=0x...]
+             [&project=...][&vintage=2022][&country=...][&category=...][&methodology=...]
+             [&maxUsdcPricePerTonne=20]
 ```
 
-Lists carbon classes with live USDC/tonne prices. Filters are AND-combined.
-Each class includes `creditsDetailed[]` (registry, vintage, `tokenId`,
-`liquidityFormatted` — max retirable tonnes) and `minRetirementTonnesFormatted`.
-Puro credits retire in whole tonnes only.
+Lists both supply sources with live USDC/tonne prices. Filters are AND-combined
+and apply to both arrays.
+
+`carbonClasses[]` — pooled protocol supply. Each class includes
+`creditsDetailed[]` (registry, vintage, `tokenId`, `liquidityFormatted` — max
+retirable tonnes) and `minRetirementTonnesFormatted`. Retire with `carbonClass`.
+
+`marketplaceListings[]` — one entry per open listing: `listingId`, `seller`, the
+exact credit, a firm `priceUsdcPerTonne`, and `leftToSellFormatted` /
+`minFillFormatted` / `expirationIso`. Retire with `listingId`. `marketplaceEnabled`
+says whether this surface was searched, so empty means "nothing listed".
+
+Puro credits retire in whole tonnes only, from either source.
 
 ---
 
 ### `GET /quote`
 
 ```
-GET /quote?chainId=8453&inputToken=0x...&carbonClass=0x...&amount=1.5[&creditToken=0x...][&vintage=2022][&tokenId=<id>]
+GET /quote?chainId=8453&inputToken=0x...&amount=1.5
+           &carbonClass=0x...  |  &listingId=0x...
+           [&creditToken=0x...][&vintage=2022][&tokenId=<id>]
 ```
 
-Live price quote. Returns `fee`, `total`, `suggestedMaxInput`, `humanSummary`,
-`resolvedCredit`, and `alternatives`. Minimum 0.001 tonnes. Puro: whole tonnes
-only (`422 amount_not_whole_tonnes` with `nearestDownTonnes`/`nearestUpTonnes`).
+Live price quote. Pass **exactly one** of `carbonClass` or `listingId` — both,
+or neither, is a `400 schema_validation`. Returns `fee`, `total`,
+`suggestedMaxInput`, `humanSummary`, `resolvedCredit`, and `alternatives`.
+Minimum 0.001 tonnes. Puro: whole tonnes only (`422 amount_not_whole_tonnes`
+with `nearestDownTonnes`/`nearestUpTonnes`).
+
+On a `listingId`: settles in **USDC only** (`400 marketplace_requires_usdc`),
+`suggestedMaxInput` equals `total` with no slippage buffer (the fill is at the
+seller's `unitPrice` or it reverts), and `alternatives` is empty. Extra failures
+belong to the seller's terms and to competing buyers: `listing_not_found`,
+`listing_expired`, `below_min_fill`, `insufficient_listing_supply`.
 
 ---
 
@@ -50,6 +71,15 @@ POST /actions/retire
 { "chainId": 8453, "from": "0x<wallet>", "inputToken": "0x...", "carbonClass": "0x...",
   "amount": "1.5", "creditToken": "0x...", "tokenId": "0",
   "details": { "retiringAddress": "0x...", "beneficiaryAddress": "0x...", "beneficiaryString": "..." } }
+```
+
+To fill a marketplace listing, replace `carbonClass`/`creditToken`/`tokenId` with
+`"listingId": "0x..."` — the listing already names its credit. The signed
+authorization is then valid for **5 minutes**, not an hour, because the seller can
+reprice or cancel and other buyers compete for the same supply. Sign and POST
+Phase 2 promptly; if it lapses, re-run Phase 1.
+
+```json
 ```
 
 Returns **HTTP 402** with the signed budget sized and the EIP-712 data ready:

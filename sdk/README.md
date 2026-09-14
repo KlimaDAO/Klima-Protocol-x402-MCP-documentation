@@ -39,6 +39,9 @@ const { status, transactionHash, retirements } = await klima.retire({
   from: account.address,
   amount: "1",
   carbonClass: "0xf4699531e0a5f6e9351a36de3753deaad329bf45", // from klima.discover()
+  // ...or fill one marketplace listing instead. `listingId` REPLACES
+  // carbonClass/creditToken rather than narrowing them — sending both is a 400:
+  //   listingId: "0x1f0c…",   (USDC only; the authorization lives 5 minutes)
   inputToken: "usdc", // or "kvcm" / an address
   details: {
     beneficiaryString: "Acme Corp",
@@ -52,6 +55,14 @@ const { status, transactionHash, retirements } = await klima.retire({
 for (const r of retirements)
   console.log(r.amountInTonnes, "t →", r.certificateUrl);
 ```
+
+> **Two supply sources.** `discover()` returns `carbonClasses[]` (pooled protocol
+> supply, AMM-priced, addressed by `carbonClass`) and `marketplaceListings[]`
+> (one seller's firm ask, addressed by `listingId`). Every call that names supply
+> takes exactly one of the two. A listing settles in USDC only, fills at its
+> `unitPrice` with no slippage buffer, and its authorization is capped at 5
+> minutes because the seller can reprice or cancel it and other buyers compete
+> for the same supply.
 
 > **Attribution is required.** `retire()` will not guess who a retirement belongs
 > to. Pass `details.beneficiaryAddress` (the party it's for), or
