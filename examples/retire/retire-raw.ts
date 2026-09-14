@@ -13,6 +13,9 @@ const CONFIG = {
   amount: "1", // tonnes (min 0.001; leading zero, "0.5" not ".5")
   carbonClass: "0x0008f35758a4318942EcB5d5414116ce7B1Ede2d", // from /discover
   creditToken: undefined as string | undefined, // pin a credit, or let the server pick
+  // Fill a marketplace listing instead. Replaces carbonClass/creditToken
+  // rather than narrowing them — sending both is a 400. USDC only.
+  listingId: undefined as string | undefined,
   inputToken: "usdc", // "usdc" | "kvcm" | a token address
   beneficiary: "x402 walkthrough", // certificate attribution (immutable once confirmed)
   message: "Retired via the Klima x402 relay",
@@ -27,6 +30,7 @@ const { values } = parseArgs({
     amount: { type: "string" },
     "carbon-class": { type: "string" },
     "credit-token": { type: "string" },
+    "listing-id": { type: "string" },
     "input-token": { type: "string" },
     beneficiary: { type: "string" },
     message: { type: "string" },
@@ -44,6 +48,8 @@ Usage: npm run retire:raw -- [options]
 Options:
   --amount <t>          tonnes to retire (min 0.001)         [${CONFIG.amount}]
   --carbon-class <0x>   class id (from /discover)            [${CONFIG.carbonClass}]
+  --listing-id <0x>     marketplace listing id (from /discover; USDC only,
+                        replaces --carbon-class / --credit-token)
   --credit-token <0x>   pin a specific credit (else server picks)
   --input-token <tok>   usdc | kvcm | token address          [${CONFIG.inputToken}]
   --beneficiary <str>   certificate attribution (immutable once confirmed)
@@ -63,15 +69,14 @@ const cfg = {
     values["carbon-class"] ?? process.env.CARBON_CLASS ?? CONFIG.carbonClass,
   creditToken:
     values["credit-token"] ?? process.env.CREDIT_TOKEN ?? CONFIG.creditToken,
+  listingId: values["listing-id"] ?? process.env.LISTING_ID ?? CONFIG.listingId,
   inputToken:
     values["input-token"] ?? process.env.INPUT_TOKEN ?? CONFIG.inputToken,
   beneficiary:
     values.beneficiary ?? process.env.BENEFICIARY ?? CONFIG.beneficiary,
   message: values.message ?? process.env.MESSAGE ?? CONFIG.message,
   baseUrl: values["base-url"] ?? process.env.BASE_URL ?? CONFIG.baseUrl,
-  chainId: Number(
-    values["chain-id"] ?? process.env.CHAIN_ID ?? CONFIG.chainId,
-  ),
+  chainId: Number(values["chain-id"] ?? process.env.CHAIN_ID ?? CONFIG.chainId),
 };
 
 // Base mainnet input-token aliases (or pass an address directly).
@@ -110,7 +115,9 @@ async function post(body: Record<string, unknown>) {
 
 console.log(`\nPaid retire (raw) → ${API}`);
 console.log(
-  `  payer ${account.address} · ${cfg.amount} t · class ${cfg.carbonClass}\n`,
+  `  payer ${account.address} · ${cfg.amount} t · ` +
+    (cfg.listingId ? `listing ${cfg.listingId}` : `class ${cfg.carbonClass}`) +
+    `\n`,
 );
 
 // ─── STEP 1/4 · prepare-auth ─────────────────────────────────────────────────
@@ -122,8 +129,13 @@ const prep = await post({
   chainId: cfg.chainId,
   from: account.address,
   inputToken,
-  carbonClass: cfg.carbonClass,
-  ...(cfg.creditToken ? { creditToken: cfg.creditToken } : {}),
+  // Exactly one supply source: a class (protocol) or a listing (marketplace).
+  ...(cfg.listingId
+    ? { listingId: cfg.listingId }
+    : {
+        carbonClass: cfg.carbonClass,
+        ...(cfg.creditToken ? { creditToken: cfg.creditToken } : {}),
+      }),
   amount: cfg.amount,
   details: {
     // certificate attribution — immutable once confirmed

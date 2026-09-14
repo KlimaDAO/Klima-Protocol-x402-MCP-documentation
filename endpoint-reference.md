@@ -32,13 +32,23 @@ All are GET; reads never move funds.
 ### 1. `GET /discover` — what's retirable
 
 ```
-GET /discover[?carbonClass=0x...][&creditToken=0x...][&maxUsdcPricePerTonne=20]
+GET /discover[?source=protocol|marketplace][&carbonClass=0x...][&creditToken=0x...]
+             [&project=...][&vintage=2022][&country=...][&category=...][&methodology=...]
+             [&maxUsdcPricePerTonne=20]
 ```
 
-Lists carbon classes from the protocol subgraph, each with a **reference USDC/tonne price**, the credits inside it (registry, vintage, token, available liquidity), plus supported input tokens and contract addresses. Filters are optional and AND-combined (`maxUsdcPricePerTonne=20` means ≤ $20/tonne). `chainId` is **not** accepted here.
+Returns two arrays, one per supply source, plus supported input tokens and contract addresses:
+
+- **`carbonClasses[]`** — pooled protocol supply from the carbon subgraph. Each class carries a **reference USDC/tonne price** and the credits inside it (registry, vintage, token, available liquidity).
+- **`marketplaceListings[]`** — one entry per open Carbonmark listing: `listingId`, `seller`, the exact credit, a firm `priceUsdcPerTonne`, and how much you can take (`leftToSell`, `minFill`, `expiration`). Sellers and asks are per listing, so two listings of the same credit are two entries.
+
+Every entry carries a `source` tag (`"protocol"` | `"marketplace"`). `marketplaceEnabled` says whether marketplace supply was searched at all, so an empty `marketplaceListings[]` means "nothing listed", not "switched off".
+
+Filters are optional, AND-combined, and apply to **both** arrays (`maxUsdcPricePerTonne=20` means ≤ $20/tonne; `source=marketplace` returns listings alone). A per-credit filter also trims a matched class down to its matching credits. Project metadata is joined per **credit**, not per class — a class spans projects, so its own country/category/methodologies are an aggregate. `chainId` is **not** accepted here.
 
 ```bash
 curl "https://x402.klimalabs.com/api/discover?maxUsdcPricePerTonne=15"
+curl "https://x402.klimalabs.com/api/discover?source=marketplace&country=BR"
 ```
 
 > **Reference price ≠ price at size.** `priceUsdcPerTonne` is the **marginal/spot** price (accurate near 1 tonne). Large orders walk up the AAM curve e.g. Biochar quoted ~$107.82/t at 1 t but ~$386.61/t for 100 t (≈ 58% of pool liquidity). Always call `/quote` for the true cost of your size.
@@ -46,15 +56,37 @@ curl "https://x402.klimalabs.com/api/discover?maxUsdcPricePerTonne=15"
 ### 2. `GET /quote` — live price
 
 ```
-GET /quote?chainId=8453&inputToken=0x...&carbonClass=0x...&amount=1.5[&creditToken=0x...][&vintage=2022][&tokenId=<id>]
+GET /quote?chainId=8453&inputToken=0x...&amount=1.5
+           &carbonClass=0x...  |  &listingId=0x...
+           [&creditToken=0x...][&vintage=2022][&tokenId=<id>]
 ```
 
-Returns the retirement price, the on-chain `fee`, `total` (price + fee), `suggestedMaxInput` (total + 4% slippage), a `humanSummary`, the `resolvedCredit` the server selected, and `alternatives`. When you don't pin a credit, the server picks the most-liquid one in the class that can cover `amount`.
+Address the supply with **exactly one** of `carbonClass` (protocol) or `listingId` (marketplace). Both, or neither, is a `400 schema_validation`: a listing already names its own credit, so there is no class to route it through.
+
+Returns the retirement price, the on-chain `fee`, `total` (price + fee), `suggestedMaxInput`, a `humanSummary`, the `resolvedCredit` the server selected, and `alternatives`. When you don't pin a credit, the server picks the most-liquid one in the class that can cover `amount`.
+
+The two sources differ in ways that matter before you sign:
+
+| | `carbonClass` | `listingId` |
+|---|---|---|
+| Price | AMM, moves with size | the seller's fixed `unitPrice` |
+| `suggestedMaxInput` | `total` + 4% slippage | `total` exactly, no buffer |
+| Input token | USDC or kVCM | **USDC only** (`marketplace_requires_usdc`) |
+| Amount limits | class liquidity | the listing's `minFill` / `leftToSell` |
+| `alternatives` | other credits in the class | empty — one seller, one ask |
+| Relay auth lifetime | up to an hour | capped at 5 minutes |
+
+A listing fill can fail in ways pooled supply cannot, because the seller sets the terms and other buyers compete for the same supply: `listing_not_found`, `listing_expired`, `below_min_fill`, `insufficient_listing_supply`.
 
 ```bash
 curl "https://x402.klimalabs.com/api/quote?chainId=8453\
 &inputToken=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\
 &carbonClass=0xf4699531e0a5f6e9351a36de3753deaad329bf45&amount=1.5"
+
+# same call against a marketplace listing
+curl "https://x402.klimalabs.com/api/quote?chainId=8453\
+&inputToken=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\
+&listingId=0x1f0c…&amount=1.5"
 ```
 
 ```json
@@ -72,10 +104,12 @@ curl "https://x402.klimalabs.com/api/quote?chainId=8453\
 ### 3. `GET /prepare/retire` — unsigned calldata
 
 ```
-GET /prepare/retire?chainId=8453&inputToken=0x...&carbonClass=0x...&amount=1.5[&creditToken=0x...][&vintage=2022][&tokenId=<id>][&maxInputTokenIn=<atomic>][&details=<urlencoded JSON>]
+GET /prepare/retire?chainId=8453&inputToken=0x...&amount=1.5
+                    &carbonClass=0x...  |  &listingId=0x...
+                    [&creditToken=0x...][&vintage=2022][&tokenId=<id>][&maxInputTokenIn=<atomic>][&details=<urlencoded JSON>]
 ```
 
-Re-quotes on-chain and returns an **ordered batch** — an ERC-20 `approve` followed by the retirement — to be submitted atomically (e.g. via Base MCP `send_calls`). The `to` field and `approvalInstructions.spender` are both the Settlement Contract; read them from the response rather than hard-coding.
+Takes the same **exactly one** of `carbonClass` / `listingId` as `/quote`, with the same USDC-only rule on a listing. Re-quotes on-chain and returns an **ordered batch** — an ERC-20 `approve` followed by the retirement — to be submitted atomically (e.g. via Base MCP `send_calls`). The `to` field and `approvalInstructions.spender` are both the Settlement Contract; read them from the response rather than hard-coding.
 
 **`details`** is an optional URL-encoded JSON object for certificate metadata. The schema is strict (unknown keys 400):
 
@@ -195,6 +229,8 @@ const { status, transactionHash, retirements } = await klima.retire({
   from: account.address,
   amount: "1",
   carbonClass: "0xf4699531e0a5f6e9351a36de3753deaad329bf45", // from discover()
+  // ...or fill one marketplace listing instead — replaces carbonClass,
+  // never accompanies it:  listingId: "0x1f0c…",   (USDC only)
   inputToken: "usdc",                                        // or "kvcm" / an address
   details: { beneficiaryString: "Acme Corp", retirementMessage: "Net-zero 2026" },
   beneficiaryIsPayer: true,   // or details.beneficiaryAddress. one is required
@@ -206,6 +242,8 @@ for (const r of retirements) console.log(r.amountInTonnes, "t →", r.certificat
 ```
 
 `retire()` runs the whole flow — prepare-auth → sign → submit → poll the certificate — and returns once the retirement is `settled` (or `pending_index` with a `transactionHash` you can resolve later). The same client also exposes `discover()`, `quote()`, and `certificate()`.
+
+An authorization signed against a `listingId` is valid for 5 minutes rather than an hour: the listing belongs to a third party who can reprice or cancel it, and another buyer can take the supply first. `retire()` signs and submits back to back, so this only bites if you hold a signature yourself.
 
 **Other wallets:** ethers — `signTypedData: (td) => signer.signTypedData(td.domain, td.types, td.message)`; browser — `signTypedData: (td) => window.ethereum.request({ method: "eth_signTypedData_v4", params: [address, JSON.stringify(td)] })`.
 
@@ -247,6 +285,8 @@ plus code-specific context fields (`issues` on `schema_validation`, `expectedNon
 | `unsupported_input_token` | 400 | resolution | no | `inputToken` is not an accepted payment token on this chain. Use the USDC or kVCM address for the chain — see the manifest, or the addresses in the endpoint documentation. |
 | `invalid_input_token` | 400 | resolution | no | `inputToken` passed validation but matches neither settlement path (EIP-3009 USDC nor EIP-2612 kVCM), so no relay function applies. Use the chain's USDC or kVCM address. |
 | `no_candidates` | 404 | resolution | yes | No credit in the carbon class matched the request filters, or the class holds no credits. Call `discover` to list live classes and credits, then retry with a `carbonClass`/`creditToken` from that response. Retryable because class inventory changes. |
+| `credit_not_found` | 404 | resolution | yes | No credit carries the requested `credit` id, or no carbon class registers the one that does. Use a `creditId` from `discover`. If the error names a `listingId`, the credit is only available on the marketplace: retry with that `listingId` instead of `credit`. Retryable because class registration changes. |
+| `credit_ambiguous` | 409 | resolution | no | The requested `credit` id maps to more than one retirement route, so its price is not determined. Pick one of the routes in the error's `carbonClasses` or `candidates` and retry with `carbonClass` (plus `creditToken` if given). The server will not choose a price on your behalf. |
 | `vintage_not_found` | 400 | resolution | no | No credit in the class carries the requested `vintage`. Pick one of the years in the error's `availableVintages`, or omit `vintage` to let the server choose a liquid credit. |
 | `insufficient_liquidity` | 422 | amount | yes | The pool cannot fill the requested amount at any price right now. Reduce `amount`, choose another credit or class, or retry later. Retryable because pool depth changes block to block. |
 | `amount_not_whole_tonnes` | 422 | amount | no | The credit's registry (Puro) retires in whole tonnes only, and `amount` has a fractional part. Send an integer `amount` (e.g. "2", not "2.5"). |
@@ -260,7 +300,13 @@ plus code-specific context fields (`issues` on `schema_validation`, `expectedNon
 | `contract_revert` | 422 | settlement | yes | A contract call reverted during simulation, so nothing was broadcast and no funds moved. `selector` and `decoded.errorName` identify the revert; `contract`, `function`, and `args` give the call context. Read `decoded.errorName`. Liquidity and slippage reverts are worth retrying with a fresh quote; validation and permission reverts are not. |
 | `transaction_reverted` | 422 | settlement | yes | The relayed transaction mined but reverted, typically from a state change between simulation and inclusion. No retirement was recorded. Inspect `transactionHash` on a block explorer, then re-run `prepare-auth` and re-sign. The old authorization's nonce may already be consumed. |
 | `retirement_not_found` | 404 | settlement | yes | No indexed retirement for that transaction hash. Immediately after confirmation this means the subgraph has not caught up yet, not that the retirement failed. Poll every few seconds. If a retirement response returned `pending_index`, this is the expected interim state. |
+| `listing_not_found` | 404 | resolution | no | No marketplace listing with that id, or the seller has since cancelled it. Listings are removed as well as expired, so a previously valid id can stop resolving. Re-read discover.marketplaceListings[] and pick a current listingId. Do not retry the same id. |
+| `listing_expired` | 422 | resolution | no | The listing exists but its expiration has passed (or the seller deactivated it), so the marketplace will not fill it. Pick another listing for the same credit from discover.marketplaceListings[], or retire the equivalent protocol supply via carbonClass. |
+| `below_min_fill` | 422 | amount | no | The requested amount is below the listing's minimum fill. The seller sets this per listing; it is not a protocol-wide floor. Raise the amount to at least `minFill` (echoed on the error and on every discover listing), or choose a listing with a smaller minimum. |
+| `insufficient_listing_supply` | 422 | amount | yes | The listing has less remaining supply than the requested amount. Partial fills by other buyers reduce it between discovery and settlement. Retry with an amount at or below `leftToSell` (echoed on the error), or spread the retirement across several listings. |
+| `marketplace_requires_usdc` | 400 | request | no | Marketplace listings settle in USDC only. kVCM is accepted for protocol supply but not for a listing fill, and would revert on-chain (MarketplaceInputTokenUnsupported). Resubmit with inputToken set to USDC, or retire the equivalent protocol supply via carbonClass to pay in kVCM. |
 | `gas_estimate_unavailable` | 503 | upstream | yes | The executor's gas reimbursement could not be priced, so the authorization budget cannot be sized. No retirement was attempted. Retry with backoff. Nothing was signed or spent, so the request can be repeated unchanged. |
+| `gas_limit_exceeds_cap` | 503 | upstream | yes | The simulated retirement needs more gas than the executor's configured ceiling (RELAY_GAS_CAP), so it was not broadcast. Nothing was signed or spent. Retry with backoff; a smaller amount or a less fragmented fill will usually estimate lower. If it persists, the operator needs to raise RELAY_GAS_CAP. |
 
 <!-- /generated:error-codes -->
 
@@ -274,10 +320,10 @@ On-chain failures all surface as `contract_revert`, with the specific revert dec
 | Action | Codes specific to it |
 | --- | --- |
 | `discover` | — |
-| `quote` | `unsupported_chain_id`, `unsupported_input_token`, `no_candidates`, `vintage_not_found`, `insufficient_liquidity`, `amount_not_whole_tonnes`, `amount_below_increment`, `contract_revert` |
-| `prepare/retire` | `unsupported_chain_id`, `unsupported_input_token`, `no_candidates`, `vintage_not_found`, `insufficient_liquidity`, `amount_not_whole_tonnes`, `amount_below_increment`, `puro_details_required`, `contract_revert` |
-| `prepare-auth` | `unsupported_chain_id`, `unsupported_input_token`, `no_candidates`, `vintage_not_found`, `insufficient_liquidity`, `amount_not_whole_tonnes`, `amount_below_increment`, `puro_details_required`, `attribution_required`, `contract_revert`, `gas_estimate_unavailable` |
-| `actions/retire` | `unsupported_chain_id`, `unsupported_input_token`, `invalid_input_token`, `no_candidates`, `vintage_not_found`, `insufficient_liquidity`, `amount_not_whole_tonnes`, `amount_below_increment`, `puro_details_required`, `payment_required`, `attribution_required`, `invalid_auth_payload`, `insufficient_authorized_value`, `params_mismatch`, `contract_revert`, `transaction_reverted`, `gas_estimate_unavailable` |
+| `quote` | `unsupported_chain_id`, `unsupported_input_token`, `no_candidates`, `credit_not_found`, `credit_ambiguous`, `vintage_not_found`, `insufficient_liquidity`, `amount_not_whole_tonnes`, `amount_below_increment`, `contract_revert`, `listing_not_found`, `listing_expired`, `below_min_fill`, `insufficient_listing_supply`, `marketplace_requires_usdc` |
+| `prepare/retire` | `unsupported_chain_id`, `unsupported_input_token`, `no_candidates`, `credit_not_found`, `credit_ambiguous`, `vintage_not_found`, `insufficient_liquidity`, `amount_not_whole_tonnes`, `amount_below_increment`, `puro_details_required`, `contract_revert`, `listing_not_found`, `listing_expired`, `below_min_fill`, `insufficient_listing_supply`, `marketplace_requires_usdc` |
+| `prepare-auth` | `unsupported_chain_id`, `unsupported_input_token`, `no_candidates`, `credit_not_found`, `credit_ambiguous`, `vintage_not_found`, `insufficient_liquidity`, `amount_not_whole_tonnes`, `amount_below_increment`, `puro_details_required`, `attribution_required`, `contract_revert`, `listing_not_found`, `listing_expired`, `below_min_fill`, `insufficient_listing_supply`, `marketplace_requires_usdc`, `gas_estimate_unavailable` |
+| `actions/retire` | `unsupported_chain_id`, `unsupported_input_token`, `invalid_input_token`, `no_candidates`, `credit_not_found`, `credit_ambiguous`, `vintage_not_found`, `insufficient_liquidity`, `amount_not_whole_tonnes`, `amount_below_increment`, `puro_details_required`, `payment_required`, `attribution_required`, `invalid_auth_payload`, `insufficient_authorized_value`, `params_mismatch`, `contract_revert`, `transaction_reverted`, `listing_not_found`, `listing_expired`, `below_min_fill`, `insufficient_listing_supply`, `marketplace_requires_usdc`, `gas_estimate_unavailable`, `gas_limit_exceeds_cap` |
 | `certificate` | `retirement_not_found` |
 
 Every action can additionally return: `invalid_json`, `unknown_action`, `not_found`, `document_not_found`, `schema_validation`, `internal_error`.

@@ -32,36 +32,53 @@ Base URL: `https://x402.klimalabs.com/api`. All endpoints are GET and free; read
 ### `GET /discover`
 
 ```
-GET /discover[?carbonClass=0x...][&creditToken=0x...][&maxUsdcPricePerTonne=20]
+GET /discover[?source=protocol|marketplace][&carbonClass=0x...][&creditToken=0x...]
+             [&project=...][&vintage=2022][&country=...][&category=...][&methodology=...]
+             [&maxUsdcPricePerTonne=20]
 ```
 
-Lists carbon classes from the protocol subgraph — each with a live USDC/tonne reference price — plus the supported input tokens and contract addresses. The three optional filters are AND-combined: `carbonClass` keeps one class, `creditToken` keeps the class holding that credit (and trims it to that credit), and `maxUsdcPricePerTonne` keeps classes priced at or below that figure (human units: `20` = $20/tonne). These are the **only** accepted parameters — anything else (including `chainId`) returns a 400.
+Lists everything retirable, plus the supported input tokens and contract addresses. Two arrays, one per supply source, each item tagged with `source`:
 
-Use the response to size a retirement: each class lists `creditsDetailed[]` (registry, vintage, `tokenId`, and `liquidityFormatted` — the maximum retirable tonnes for that credit) plus `minRetirementTonnesFormatted`. Puro `batchId` and token standard are resolved server-side — callers never supply them.
+- `carbonClasses[]` — pooled protocol supply, each with a live USDC/tonne **reference** price. Retire with `carbonClass`.
+- `marketplaceListings[]` — one entry per open marketplace listing, each with a **firm** `priceUsdcPerTonne`. Retire with `listingId`.
+
+`marketplaceEnabled` says whether the marketplace was searched at all, so an empty `marketplaceListings[]` means "nothing listed", not "switched off".
+
+The optional filters are AND-combined and apply to **both** arrays: `source` keeps one surface, `carbonClass` keeps one class, `creditToken` keeps the class or listing holding that credit (and trims a matched class to that credit), `project` / `vintage` / `country` / `category` / `methodology` match per-credit project metadata, and `maxUsdcPricePerTonne` keeps supply priced at or below that figure (human units: `20` = $20/tonne). These are the **only** accepted parameters — anything else (including `chainId`) returns a 400.
+
+Use the response to size a retirement. A class lists `creditsDetailed[]` (registry, vintage, `tokenId`, and `liquidityFormatted` — the maximum retirable tonnes for that credit) plus `minRetirementTonnesFormatted`. A listing lists `leftToSellFormatted` (the most you can take) and `minFillFormatted` (the least the seller will sell), which bound the amount from both sides. Puro `batchId` and token standard are resolved server-side — callers never supply them.
 
 ### `GET /quote`
 
 ```
-GET /quote?chainId=8453&inputToken=0x...&carbonClass=0x...&amount=1.5[&creditToken=0x...][&vintage=2022][&tokenId=<id>]
+GET /quote?chainId=8453&inputToken=0x...&amount=1.5
+           &carbonClass=0x...  |  &listingId=0x...
+           [&creditToken=0x...][&vintage=2022][&tokenId=<id>]
 ```
 
 Live price quote for retiring `amount` tonnes. Returns the retirement price, the onchain settlement `fee`, `total` (price + fee), `suggestedMaxInput` (total + slippage), a `humanSummary`, plus `resolvedCredit` (the `creditToken` / `tokenId` / `vintage` the server selected) and `alternatives`.
 
-Required: `chainId` (always `8453`), `inputToken` and `carbonClass` (addresses), `amount` (a decimal tonne string, `"1.5"`). The rest narrow **credit resolution** — when omitted, the server picks the most-liquid credit in the class that can cover `amount`:
+Required: `chainId` (always `8453`), `inputToken` (address), `amount` (a decimal tonne string, `"1.5"`), and **exactly one** supply source — `carbonClass` or `listingId`. Passing both, or neither, is a `400 schema_validation`: a listing already names its own credit, so there is no class to route it through.
+
+On `carbonClass`, the rest narrow **credit resolution** — when omitted, the server picks the most-liquid credit in the class that can cover `amount`:
 
 - `creditToken` — only consider credits at that address.
 - `vintage` — only that year; an unavailable year returns `400 vintage_not_found` listing `availableVintages`.
 - `creditToken` + `tokenId` together — pin one exact credit (the ERC-1155 case); `vintage` is then ignored.
+
+On `listingId` there is nothing to resolve — the listing fixes the credit, so `creditToken` / `vintage` / `tokenId` do not apply. Three further differences: it settles in **USDC only** (`400 marketplace_requires_usdc`), `suggestedMaxInput` equals `total` with no slippage buffer (the fill is at the seller's `unitPrice` or it reverts), and `alternatives` comes back empty — one seller, one ask. It can also fail on the seller's terms or on competing buyers: `listing_not_found`, `listing_expired`, `below_min_fill`, `insufficient_listing_supply`.
 
 Amount rules: see [Notes](#notes).
 
 ### `GET /prepare/retire`
 
 ```
-GET /prepare/retire?chainId=8453&inputToken=0x...&carbonClass=0x...&amount=1.5[&creditToken=0x...][&vintage=2022][&tokenId=<id>][&maxInputTokenIn=<atomic>][&details=<urlencoded JSON>]
+GET /prepare/retire?chainId=8453&inputToken=0x...&amount=1.5
+                    &carbonClass=0x...  |  &listingId=0x...
+                    [&creditToken=0x...][&vintage=2022][&tokenId=<id>][&maxInputTokenIn=<atomic>][&details=<urlencoded JSON>]
 ```
 
-Quotes onchain, then returns unsigned calldata as an **ordered batch**: an ERC-20 `approve` followed by the retirement. Credit resolution and amount rules are identical to `/quote` (prepare re-quotes server-side; the `quote` object in its response is the authoritative price). One retirement per call.
+Quotes onchain, then returns unsigned calldata as an **ordered batch**: an ERC-20 `approve` followed by the retirement. Supply selection, credit resolution and amount rules are identical to `/quote` (prepare re-quotes server-side; the `quote` object in its response is the authoritative price). One retirement per call.
 
 `maxInputTokenIn` (atomic units) overrides the default slippage ceiling of `(price + fee) × 1.04`. It is the total budget the Settlement Contract may spend; the fee and retirement cost come out of it and the remainder is refunded in the same transaction.
 
@@ -123,7 +140,7 @@ A `404 retirement_not_found` right after confirmation means the subgraph hasn't 
 
 ```
 1. get_wallets → address                              (onboarding)
-2. GET /discover → pick carbonClass (creditToken optional)
+2. GET /discover → pick a carbonClass (creditToken optional) or a listingId
    - creditsDetailed[].liquidityFormatted = max retirable tonnes; Puro = whole tonnes only
 3. Confirm the input token → if the user has NOT specified one, ASK: "Would you like to pay with USDC or kVCM?"
    - do not silently default to USDC; the user may not hold it, and switching only after a failed transaction is a poor experience
