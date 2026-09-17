@@ -307,6 +307,7 @@ plus code-specific context fields (`issues` on `schema_validation`, `expectedNon
 | `marketplace_requires_usdc` | 400 | request | no | Marketplace listings settle in USDC only. kVCM is accepted for protocol supply but not for a listing fill, and would revert on-chain (MarketplaceInputTokenUnsupported). Resubmit with inputToken set to USDC, or retire the equivalent protocol supply via carbonClass to pay in kVCM. |
 | `gas_estimate_unavailable` | 503 | upstream | yes | The executor's gas reimbursement could not be priced, so the authorization budget cannot be sized. No retirement was attempted. Retry with backoff. Nothing was signed or spent, so the request can be repeated unchanged. |
 | `gas_limit_exceeds_cap` | 503 | upstream | yes | The simulated retirement needs more gas than the executor's configured ceiling (RELAY_GAS_CAP), so it was not broadcast. Nothing was signed or spent. Retry with backoff; a smaller amount or a less fragmented fill will usually estimate lower. If it persists, the operator needs to raise RELAY_GAS_CAP. |
+| `payment_unavailable` | 503 | upstream | yes | The paid catalog cannot issue a payment challenge on this deployment because its receiving address or Coinbase facilitator credentials are not configured. Nothing was charged. Use the free GET /api/discover for the full catalog. Operators: set X402_PAY_TO, CDP_API_KEY_ID and CDP_API_KEY_SECRET. |
 
 <!-- /generated:error-codes -->
 
@@ -346,7 +347,7 @@ The same data is served live at [`/.well-known/x402-errors.json`](https://x402.k
 
 ## Fees
 
-API calls are free. Each retirement bakes in a protocol fee — `max(floor, feeBps% of cost)`, floor denominated in USDC (converted to kVCM via the pool when paying in kVCM) — computed and collected on-chain by the Settlement Contract. It's always included in `quote.fee` and folded into `total`. The contract spends exactly `retirementCost + fee` and refunds any unused slippage budget in the same transaction.
+API calls are free. Each retirement bakes in a protocol fee — `max(floor, feeBps% of cost)`, floor denominated in USDC (converted to kVCM via the pool when paying in kVCM) — computed and collected on-chain by the Settlement Contract. Marketplace listing fills are priced on their own schedule: **5% of the fill cost, with a 0.05 USDC minimum**. It's always included in `quote.fee` and folded into `total`. The contract spends exactly `retirementCost + fee` and refunds any unused slippage budget in the same transaction.
 
 ## Use it from an AI agent
 
