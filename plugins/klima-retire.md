@@ -11,7 +11,7 @@
 
 ## Overview
 
-Klima retires tokenized carbon credits through the Klima Protocol Retirement Aggregator on Base. The plugin reads the credit catalog and live prices over the Klima HTTP API, fetches **unsigned calldata** for an ordered `[approve, retire]` batch, and executes it atomically via `send_calls`. Every API call is free — a small protocol fee is collected onchain by the Settlement Contract inside the retirement transaction itself (see [Notes](#notes)). After the transaction confirms, the API resolves the public Carbonmark certificate URL for the retirement.
+Klima retires tokenized carbon credits through the Klima Protocol Retirement Aggregator on Base. The plugin reads the credit catalog and live prices over the x402 Carbon Retirement API, fetches **unsigned calldata** for an ordered `[approve, retire]` batch, and executes it atomically via `send_calls`. Reads are free. Retiring is paid: the batch costs the credit price plus a fee, collected onchain by the Settlement Contract inside the retirement transaction itself (see [Notes](#notes)). After the transaction confirms, the API resolves the public Carbonmark certificate URL for the retirement.
 
 **Supported chain:** Base mainnet (`8453`) only. Any other `chainId` is rejected with a 400 — Base Sepolia (`84532`) returns `unsupported_chain_id`, any other number returns `schema_validation`.
 
@@ -27,7 +27,7 @@ Klima is HTTP-only; every capability follows the standard HTTP routing in [../re
 
 ## Endpoints
 
-Base URL: `https://x402.klimalabs.com/api`. All endpoints are GET and free; reads never move funds.
+Base URL: `https://x402.klimalabs.com/api`. Reads (`discover`, `quote`, `certificate`) are free GETs and never move funds. Retiring is paid: the batch you submit pays the credit price plus a fee.
 
 ### `GET /discover`
 
@@ -232,7 +232,7 @@ Drop the `step` and `chainId` fields — `send_calls` only needs `to` / `value` 
 
 **Input tokens:** USDC or kVCM only (addresses above).
 
-**Fees:** API calls are free. Each retirement bakes in a protocol fee, computed and collected onchain by the Settlement Contract: `fee = max(floor, feeBps% of retirement cost)`, with the floor denominated in USDC (converted via the kVCM/USDC pool when paying in kVCM). The live fee is always included in `quote.fee` / `feeFormatted` and folded into `total` and `suggestedMaxInput` — never estimate it yourself. Onchain, the contract emits `RetirementSettled(payer, beneficiary, value, fee, retirementCost, refunded)`; the payer spends exactly `retirementCost + fee` and any approved budget beyond that is refunded in the same transaction.
+**Fees:** Reads are free. Each retirement costs the credit price plus a fee, computed and collected onchain by the Settlement Contract (current schedule: [endpoint reference](https://github.com/KlimaDAO/Klima-Protocol-x402-MCP-documentation/blob/main/endpoint-reference.md#fees)). The live fee is always included in `quote.fee` / `feeFormatted` and folded into `total` and `suggestedMaxInput` — never estimate it yourself. Onchain, the contract emits `RetirementSettled(payer, beneficiary, value, fee, retirementCost, refunded)`; the payer spends exactly `retirementCost + fee` and any approved budget beyond that is refunded in the same transaction.
 
 **Amount rules:** `amount` is a decimal tonne string; minimum 0.001 tonnes (1 kg). **Puro credits retire in whole tonnes only** — fractional amounts return `422 amount_not_whole_tonnes` with the nearest valid amounts. Amounts above a credit's liquidity return `422 insufficient_liquidity`.
 

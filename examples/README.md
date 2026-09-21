@@ -89,7 +89,7 @@ calls (no funds, no signature) and prints a ready-to-paste pick:
   left and the smallest fill the seller accepts. `npm run discover` ranks both
   together and quotes whichever is cheapest for your amount.
 - **`quote({ amount, carbonClass | listingId, creditToken, inputToken })`** prices the exact
-  retirement (retirement cost + on-chain protocol fee). This is the number to
+  retirement (retirement cost + fee). This is the number to
   show a user before they commit. The relay's signed budget (step 1 below) is
   slightly higher because it also covers the executor's gas.
 

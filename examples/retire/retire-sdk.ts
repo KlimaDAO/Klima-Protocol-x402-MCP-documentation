@@ -18,7 +18,7 @@ const CONFIG = {
   listingId: undefined as string | undefined,
   inputToken: "usdc", // "usdc" | "kvcm" | a token address
   beneficiary: "x402 SDK example", // certificate attribution (immutable once confirmed)
-  message: "Retired via the Klima x402 relay",
+  message: "Retired via the x402 Carbon Retirement API",
   baseUrl: "https://x402.klimalabs.com", // endpoint origin (no trailing /api)
 };
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,7 +38,7 @@ const { values } = parseArgs({
 });
 
 if (values.help) {
-  console.log(`Retire tokenized carbon via the Klima x402 relay (spends funds).
+  console.log(`Retire tokenized carbon via the x402 Carbon Retirement relay (spends funds).
 
 Usage: npm run retire:sdk -- [options]
        (the -- is required so npm forwards the flags to the script)

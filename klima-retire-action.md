@@ -6,8 +6,8 @@
 
 # Klima Carbon Retirement — Relay Action Skill
 
-Retire tokenized carbon credits on Base via the Klima x402 endpoint. The user signs an
-EIP-712 authorization off-chain; the Klima x402 endpoint performs the retirement. **No on-chain approval from the user is needed.**
+Retire tokenized carbon credits on Base via the x402 Carbon Retirement API. The user signs an
+EIP-712 authorization off-chain; the x402 Carbon Retirement API performs the retirement. **No on-chain approval from the user is needed.**
 
 ---
 

@@ -14,7 +14,7 @@ Step-by-step guide for wiring [Base MCP](https://docs.base.org/ai-agents/quickst
 
 | Need                                                                                | Why                                                                                                                                          |
 | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| A **Base Account** (sign up in the Base app / [Base Account](https://www.base.org)) | This is the smart wallet that signs. **Not** your Coinbase exchange balance. Fund it **on Base mainnet** with **USDC or kVCM** (retirement cost + protocol fee) **and a small amount of ETH** for gas, before retiring. |
+| A **Base Account** (sign up in the Base app / [Base Account](https://www.base.org)) | This is the smart wallet that signs. **Not** your Coinbase exchange balance. Fund it **on Base mainnet** with **USDC or kVCM** (retirement cost + fee) **and a small amount of ETH** for gas, before retiring. |
 | **Claude Code** (or another MCP-capable agent)                                      |
 | **Node / npx**                                                                      | Required only for the skill bundle install (step 3).                                                                                         |
 

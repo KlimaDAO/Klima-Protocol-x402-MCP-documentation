@@ -1,7 +1,7 @@
 /**
- * Klima x402 retire: TypeScript client
- * ──────────────────────────────────────
- * Retire tokenized carbon on Base through the KlimaDAO Retirement Aggregator, from any wallet or agent.
+ * x402 Carbon Retirement API: TypeScript client
+ * ─────────────────────────────────────────────
+ * Retire tokenized carbon on Base from any wallet or agent.
  * Zero dependencies
  */
 
