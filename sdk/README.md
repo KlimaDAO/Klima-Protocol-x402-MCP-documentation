@@ -7,8 +7,7 @@
 # @klimadao/x402-retire
 
 Zero-dependency TypeScript client for retiring tokenized carbon on **Base**
-through the KlimaDAO Retirement Aggregator x402 endpoint using any wallet or
-agent.
+through the x402 Carbon Retirement API using any wallet or agent.
 
 > **Drop-in today, package later.** `klima-retire.ts` is a single self-contained
 > file: copy it into your project now, or `npm i @klimadao/x402-retire` once

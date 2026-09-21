@@ -18,7 +18,7 @@ const CONFIG = {
   listingId: undefined as string | undefined,
   inputToken: "usdc", // "usdc" | "kvcm" | a token address
   beneficiary: "x402 walkthrough", // certificate attribution (immutable once confirmed)
-  message: "Retired via the Klima x402 relay",
+  message: "Retired via the x402 Carbon Retirement API",
   baseUrl: "https://x402.klimalabs.com", // endpoint origin (no trailing /api)
   chainId: 8453, // Base mainnet
 };

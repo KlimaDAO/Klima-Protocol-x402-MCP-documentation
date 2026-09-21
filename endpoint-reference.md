@@ -4,15 +4,16 @@
   Edit the source file and open a PR there instead.
 -->
 
-# Klima x402 Endpoint
+# x402 Carbon Retirement API
 
 > Page content for **https://www.klimalabs.com/x402-endpoint**
 
-Retire tokenized carbon credits on **Base** through the KlimaDAO Retirement Aggregator straight from an AI agent or any HTTP client. The endpoint discovers retirable carbon, prices it live, hands back unsigned `[approve, retire]` calldata, and resolves the public Carbonmark certificate once the transaction confirms.
+Retire tokenized carbon credits on **Base** through the Klima Protocol Retirement Aggregator straight from an AI agent or any HTTP client. The endpoint discovers retirable carbon, prices it live, hands back unsigned `[approve, retire]` calldata, and resolves the public Carbonmark certificate once the transaction confirms.
 
 > **Base URL:** `https://x402.klimalabs.com/api`
 > **Chain:** Base mainnet (`chainId=8453`) only
-> **Auth:** none on the HTTP layer. Reads are free **GET**s; the paid relay path **POST**s to the same `/api`. The only cost is on-chain: the protocol fee inside the retirement transaction (plus gas reimbursement on the relay path).
+> **Auth:** none on the HTTP layer.
+> **Cost:** Discover, quote and certificate are free. Retiring is paid: each retirement costs the credit price plus a fee (and executor gas when relayed through `actions/retire`). `GET /api/catalog` is a $0.001 x402 snapshot of the most liquid supply.
 > **Agent manifest:** `https://x402.klimalabs.com/.well-known/x402.json`
 > **Agent plugin + setup docs:** [github.com/KlimaDAO/Klima-Protocol-x402-MCP-documentation](https://github.com/KlimaDAO/Klima-Protocol-x402-MCP-documentation)
 
@@ -22,7 +23,7 @@ The endpoint is built for the [x402](https://www.x402.org/) agent-payments ecosy
 
 Two ways to retire:
 
-- **Build-your-own (free GET):** `discover` → `quote` → `prepare/retire` hands back unsigned `[approve, retire]` calldata that **you** submit from a Base Account (e.g. via Base MCP). Reads are free; you pay gas and submit the batch yourself.
+- **Build-your-own (paid from your wallet):** `discover` → `quote` → `prepare/retire` hands back unsigned `[approve, retire]` calldata that **you** submit from a Base Account (e.g. via Base MCP). Reads are free; the batch you submit pays the credit price plus a fee, and you pay the gas.
 - **Paid relay (sign once, no gas, no Base account):** `prepare-auth` → sign one EIP-712 token authorization → `actions/retire`. A Klima executor relays the retirement on-chain and **pays the gas**, reimbursed from your signed budget. Any third-party wallet or agent can do this — see [Paid retire (relay)](#paid-retire-relay--sign-once-no-gas) below.
 
 ## The read endpoints
@@ -212,7 +213,7 @@ The relay path lets **any wallet or agent** retire without holding native ETH, w
 4. POST /api  certificate    { txHash }       → public proof (poll if pending)
 ```
 
-`prepare-auth` is the 200 alias of the 402 challenge that `actions/retire` returns when posted **without** an `authPayload`; either entry point gives you the same `typedData`. The signed budget (`authValue`) covers **retirement + protocol fee + executor gas reimbursement**, slippage-buffered. The signer needs only an input-token balance (USDC or kVCM) — **no ETH**.
+`prepare-auth` is the 200 alias of the 402 challenge that `actions/retire` returns when posted **without** an `authPayload`; either entry point gives you the same `typedData`. The signed budget (`authValue`) covers **retirement + fee + executor gas reimbursement**, slippage-buffered. The signer needs only an input-token balance (USDC or kVCM) — **no ETH**.
 
 ### Client SDK
 
@@ -295,7 +296,7 @@ plus code-specific context fields (`issues` on `schema_validation`, `expectedNon
 | `payment_required` | 402 | authorization | no | Not a failure: the x402 challenge returned when `actions/retire` is posted without an `authPayload`. The body carries the EIP-712 `typedData` to sign and a ready-to-send `actionsRetireRequest`. Identical in shape to a `prepare-auth` 200. Sign `typedData` with the payer wallet, set `authPayload.signature` (or `v`/`r`/`s`), and POST `actionsRetireRequest` back — verbatim, including `salt` on the USDC path. |
 | `attribution_required` | 400 | authorization | no | A relayed retirement named no beneficiary. The beneficiary is indexed on-chain as a permanent grouping key and cannot be changed once the retirement confirms, so it is not defaulted silently. Set `details.beneficiaryAddress` to the party the retirement is for, or set `beneficiaryIsPayer: true` to credit the paying wallet deliberately. |
 | `invalid_auth_payload` | 400 | authorization | no | The authorization is structurally wrong for this request: `authPayload.from` is not the request `from`, `authPayload.to` is not the settlement contract, the payload shape doesn't match the input token's scheme (EIP-3009 for USDC, EIP-2612 for kVCM), or a USDC payload arrived without its top-level `salt`. Post the `actionsRetireRequest` from `prepare-auth` (or the 402 challenge) verbatim, adding only the signature. Do not rebuild the payload by hand. |
-| `insufficient_authorized_value` | 400 | authorization | no | The signed `authPayload.value` no longer covers retirement + protocol fee + executor gas, usually because price or gas moved after signing. Relaying it would revert on-chain. Re-run `prepare-auth` (or re-request the 402 challenge) to size a fresh budget of at least `requiredMinimum`, then re-sign. The old authorization is unusable, not merely stale. |
+| `insufficient_authorized_value` | 400 | authorization | no | The signed `authPayload.value` no longer covers retirement + fee + executor gas, usually because price or gas moved after signing. Relaying it would revert on-chain. Re-run `prepare-auth` (or re-request the 402 challenge) to size a fresh budget of at least `requiredMinimum`, then re-sign. The old authorization is unusable, not merely stale. |
 | `params_mismatch` | 400 | authorization | no | The submitted retirement is not the one that was authorized. On the USDC path `authPayload.nonce` is keccak256 of the retirement plus `salt`, so the signature binds the credit, amount, and attribution — not just the spend value. The rebuilt struct hashed to something else. Re-post `actionsRetireRequest` verbatim including `creditToken`, `tokenId`, `details`, and `salt`, or re-run `prepare-auth` and re-sign. A salt is single-use; one from an earlier authorization will not reproduce the nonce. The error echoes `expectedNonce`, `receivedNonce`, and the `submitted` values to diff against. |
 | `contract_revert` | 422 | settlement | yes | A contract call reverted during simulation, so nothing was broadcast and no funds moved. `selector` and `decoded.errorName` identify the revert; `contract`, `function`, and `args` give the call context. Read `decoded.errorName`. Liquidity and slippage reverts are worth retrying with a fresh quote; validation and permission reverts are not. |
 | `transaction_reverted` | 422 | settlement | yes | The relayed transaction mined but reverted, typically from a state change between simulation and inclusion. No retirement was recorded. Inspect `transactionHash` on a block explorer, then re-run `prepare-auth` and re-sign. The old authorization's nonce may already be consumed. |
@@ -347,7 +348,7 @@ The same data is served live at [`/.well-known/x402-errors.json`](https://x402.k
 
 ## Fees
 
-API calls are free. Each retirement bakes in a protocol fee — `max(floor, feeBps% of cost)`, floor denominated in USDC (converted to kVCM via the pool when paying in kVCM) — computed and collected on-chain by the Settlement Contract. Marketplace listing fills are priced on their own schedule: **5% of the fill cost, with a 0.05 USDC minimum**. It's always included in `quote.fee` and folded into `total`. The contract spends exactly `retirementCost + fee` and refunds any unused slippage budget in the same transaction.
+Discover, quote and certificate are free; `GET /api/catalog` costs $0.001 per call. Each retirement costs the credit price plus a fee (and executor gas when relayed), computed and collected on-chain by the Settlement Contract. Current values, subject to change: `max(floor, feeBps% of cost)`, floor denominated in USDC (converted to kVCM via the pool when paying in kVCM); marketplace listing fills are priced on their own schedule, **5% of the fill cost with a 0.05 USDC minimum**. Always read the live fee from the quote: it's always included in `quote.fee` and folded into `total`. The contract spends exactly `retirementCost + fee` and refunds any unused slippage budget in the same transaction.
 
 ## Use it from an AI agent
 

@@ -6,7 +6,7 @@
 
 # Table of contents
 
-* [x402 Endpoint](README.md)
+* [x402 Carbon Retirement API](README.md)
 * [Retire carbon with x402](retire-carbon-with-x402.md)
 * [Gasless retirement (paid relay)](gasless-retirement-paid-relay.md)
 * [Use x402 from an AI agent](use-x402-from-an-ai-agent.md)
