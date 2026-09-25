@@ -64,7 +64,7 @@ GET /quote?chainId=8453&inputToken=0x...&amount=1.5
 
 Address the supply with **exactly one** of `carbonClass` (protocol) or `listingId` (marketplace). Both, or neither, is a `400 schema_validation`: a listing already names its own credit, so there is no class to route it through.
 
-Returns the retirement price, the on-chain `fee`, `total` (price + fee), `suggestedMaxInput`, a `humanSummary`, the `resolvedCredit` the server selected, and `alternatives`. When you don't pin a credit, the server picks the most-liquid one in the class that can cover `amount`.
+Returns the retirement price, the on-chain `fee`, `total` (price + fee), `suggestedMaxInput`, a `humanSummary`, the `resolvedCredit` the server selected, and `alternatives`. It also returns `relayExecutorGas` and `relayTotal` (`total` + gas): the gas reimbursement paid to the relayer out of your budget when you retire through `prepare-auth` + `actions/retire`. It is estimated at quote time and re-estimated when the relay submits, and is `null` if gas can't be priced. `prepare/retire` sends the transaction from your own wallet, so that path pays no reimbursement and costs `total` plus your own ETH gas. When you don't pin a credit, the server picks the most-liquid one in the class that can cover `amount`.
 
 The two sources differ in ways that matter before you sign:
 
@@ -97,6 +97,8 @@ curl "https://x402.klimalabs.com/api/quote?chainId=8453\
   "feeFormatted": "0.01",
   "totalFormatted": "19.801336",
   "suggestedMaxInputFormatted": "20.593389",
+  "relayExecutorGasFormatted": "0.025192",
+  "relayTotalFormatted": "19.826528",
   "humanSummary": "1.5 tonnes @ 19.791336 USDC + 0.01 USDC fee = 19.801336 USDC (max 20.593389 USDC with 4% slippage)",
   "resolvedCredit": { "creditToken": "0xe662…71b8", "tokenId": 0, "vintage": 2021 }
 }
@@ -290,7 +292,7 @@ plus code-specific context fields (`issues` on `schema_validation`, `expectedNon
 | `credit_ambiguous` | 409 | resolution | no | The requested `credit` id maps to more than one retirement route, so its price is not determined. Pick one of the routes in the error's `carbonClasses` or `candidates` and retry with `carbonClass` (plus `creditToken` if given). The server will not choose a price on your behalf. |
 | `vintage_not_found` | 400 | resolution | no | No credit in the class carries the requested `vintage`. Pick one of the years in the error's `availableVintages`, or omit `vintage` to let the server choose a liquid credit. |
 | `insufficient_liquidity` | 422 | amount | yes | The pool cannot fill the requested amount at any price right now. Reduce `amount`, choose another credit or class, or retry later. Retryable because pool depth changes block to block. |
-| `amount_not_whole_tonnes` | 422 | amount | no | The credit's registry (Puro) retires in whole tonnes only, and `amount` has a fractional part. Send an integer `amount` (e.g. "2", not "2.5"). |
+| `amount_not_whole_tonnes` | 422 | amount | no | The credit's registry (Puro, ECO) retires in whole tonnes only, and `amount` has a fractional part. Send an integer `amount` (e.g. "2", not "2.5"). |
 | `amount_below_increment` | 422 | amount | no | `amount` is smaller than the credit's minimum retirement unit. Raise `amount` to at least the minimum reported in the error body. |
 | `puro_details_required` | 400 | amount | no | The credit is Puro-issued, whose registry requires consumption metadata that the request omitted. Add the fields named in the error body to `details`: `beneficiaryLocation`, `consumptionCountryCode`, `consumptionPeriodStart`, `consumptionPeriodEnd`. |
 | `payment_required` | 402 | authorization | no | Not a failure: the x402 challenge returned when `actions/retire` is posted without an `authPayload`. The body carries the EIP-712 `typedData` to sign and a ready-to-send `actionsRetireRequest`. Identical in shape to a `prepare-auth` 200. Sign `typedData` with the payer wallet, set `authPayload.signature` (or `v`/`r`/`s`), and POST `actionsRetireRequest` back — verbatim, including `salt` on the USDC path. |
@@ -344,7 +346,7 @@ The same data is served live at [`/.well-known/x402-errors.json`](https://x402.k
 | Klima Protocol AAM | `0x1C24239309398220883207681602BfF4D10fbde1` |
 | Settlement Contract (retire target + token spender) | read from each prepare response (`to` / `approvalInstructions.spender`) |
 
-**Amount rules:** decimal tonne string, minimum **0.001 t (1 kg)**. **Toucan Puro credits retire in whole tonnes only.** Amounts above a credit's liquidity are rejected.
+**Amount rules:** decimal tonne string, minimum **0.001 t (1 kg)**. **Toucan Puro and ECO credits retire in whole tonnes only.** Amounts above a credit's liquidity are rejected.
 
 ## Fees
 
